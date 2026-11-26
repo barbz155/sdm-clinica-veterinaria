@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SDM · Clínica Veterinária</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Tela de autenticação -->
+  <div id="auth" class="auth-wrap hidden">
+    <section class="auth-hero">
+      <div style="font-size:2.6rem">🐾</div>
+      <h1>Clínica Veterinária SDM</h1>
+      <p>Sistema de gestão clínica com integração a serviços externos.</p>
+      <ul>
+        <li>Tutores, animais e microchips RFID</li>
+        <li>Consultas e histórico de vacinação</li>
+        <li>Consulta automática de CEP (ViaCEP)</li>
+        <li>Comunicação obrigatória da vacina antirrábica</li>
+      </ul>
+      <p class="small" style="opacity:.75;margin-top:2rem">Projeto acadêmico · A3 Sistemas Distribuídos e Mobile · dados fictícios</p>
+    </section>
+    <section class="auth-panel"><div class="auth-card" id="auth-card"></div></section>
+  </div>
+
+  <!-- Aplicação -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="logo">🐾</div><div>Clínica SDM<small>Gestão veterinária</small></div></div>
+      <nav class="nav" id="nav">
+        <a href="#/painel" data-r="painel"><span class="ico">📊</span>Painel</a>
+        <div class="sep">Cadastros</div>
+        <a href="#/tutores" data-r="tutores"><span class="ico">👤</span>Tutores</a>
+        <a href="#/animais" data-r="animais"><span class="ico">🐶</span>Animais</a>
+        <div class="sep">Atendimento</div>
+        <a href="#/consultas" data-r="consultas"><span class="ico">🩺</span>Consultas</a>
+        <a href="#/vacinas" data-r="vacinas"><span class="ico">💉</span>Vacinas</a>
+        <div class="sep">Integração</div>
+        <a href="#/integracoes" data-r="integracoes"><span class="ico">🔄</span>Governo<span class="badge-count hidden" id="badge-pend"></span></a>
+        <div class="sep">Administração</div>
+        <a href="#/catalogos" data-r="catalogos"><span class="ico">📚</span>Espécies e raças</a>
+        <a href="#/veterinarios" data-r="veterinarios"><span class="ico">🧑‍⚕️</span>Veterinários</a>
+        <a href="/docs" target="_blank"><span class="ico">📘</span>API (Swagger)</a>
+      </nav>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <button class="menu-btn" id="menu-btn" aria-label="Menu">☰</button>
+        <span id="gov-status" class="tag neutral small">Serviço gov.: verificando…</span>
+        <div class="spacer"></div>
+        <div class="user-chip"><div class="avatar" id="avatar">?</div><span class="nm" id="user-name"></span></div>
+        <button class="btn sm" id="btn-logout">Sair</button>
+      </header>
+      <main class="content" id="view"></main>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div class="toasts" id="toasts"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+flowchart LR
+    U["👩‍⚕️ Veterinário<br/>(navegador)"] -->|HTTP| FE["Frontend web<br/>HTML · CSS · JS<br/>(SPA responsiva)"]
+    FE -->|"REST/JSON + Bearer token"| API
+    subgraph CLINICA["Serviço 1 — API privada da clínica · porta 5000"]
+        API["Rotas REST<br/>(Flask Blueprints)"] --> SV["Serviços<br/>regras de negócio<br/>outbox + reenvio"]
+        SV --> DB1[("clinica.db<br/>SQLite")]
+        W["Worker de reenvio<br/>(backoff exponencial)"] --> SV
+    end
+    SV -->|"HTTPS GET /ws/{cep}/json"| VIA["🌐 ViaCEP<br/>API pública real"]
+    SV -->|"HTTP + X-Api-Key<br/>+ Idempotency-Key"| GOVAPI
+    subgraph GOV["Serviço 2 — API governamental simulada · porta 5001"]
+        GOVAPI["Rotas REST<br/>validação · protocolos<br/>idempotência · simulação de falhas"] --> DB2[("governo.db<br/>SQLite separado")]
+    end

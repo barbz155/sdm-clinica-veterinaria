@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel · API Governamental Simulada</title>
+<style>
+  body { font-family: "Segoe UI", system-ui, sans-serif; margin: 0; background: #f2f4f7; color: #1c2430; }
+  header { background: #1e3a8a; color: #fff; padding: 1rem 1.5rem; }
+  header h1 { margin: 0; font-size: 1.25rem; }
+  header p { margin: .2rem 0 0; font-size: .82rem; opacity: .8; }
+  main { padding: 1.2rem 1.5rem; max-width: 1200px; }
+  .card { background: #fff; border: 1px solid #e1e5eb; border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; }
+  .kpi .v { font-size: 1.7rem; font-weight: 700; } .kpi .l { font-size: .8rem; color: #667; }
+  .modos button { border: 1px solid #c9d1dc; background: #fff; padding: .55rem 1rem; border-radius: 8px; cursor: pointer; margin: .2rem; font: inherit; }
+  .modos button.on { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; } th, td { text-align: left; padding: .45rem; border-bottom: 1px solid #eceff3; }
+  th { color: #667; font-size: .72rem; text-transform: uppercase; }
+  .tag { padding: .1rem .45rem; border-radius: 99px; font-size: .72rem; font-weight: 600; }
+  .ok { background: #e7f6ec; color: #15803d; } .err { background: #fdeaea; color: #b91c1c; } .warn { background: #fdf3e2; color: #b45309; }
+  .mono { font-family: Consolas, monospace; } .aviso { font-size: .8rem; color: #8a5300; background: #fff6e5; padding: .6rem .8rem; border-radius: 8px; }
+  .wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<header><h1>🏛️ API Governamental Simulada — Registro de Animais com Microchip</h1>
+  <p>Serviço fictício para fins acadêmicos. Não representa integração oficial com sistemas governamentais reais. · <a href="/docs" style="color:#cfe0ff">Documentação (Swagger)</a></p></header>
+<main>
+  <div class="card"><b>Simulação de falhas</b> <span id="modo-atual"></span>
+    <div class="modos" id="modos">
+      <button data-m="NORMAL">✅ Normal</button>
+      <button data-m="INDISPONIVEL">⛔ Indisponível (HTTP 503)</button>
+      <button data-m="LENTO">🐢 Lento (timeout)</button>
+      <button data-m="ERRO_INTERMITENTE">⚡ Erro intermitente (50%)</button>
+    </div>
+    <p class="aviso">Use “Indisponível” na demonstração: a clínica mantém a vacina registrada localmente e a comunicação fica PENDENTE até o serviço voltar.</p>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="card"><b>Últimos animais registrados</b><div class="wrap"><table id="animais"></table></div></div>
+  <div class="card"><b>Últimas operações (protocolos)</b><div class="wrap"><table id="ops"></table></div></div>
+</main>
+<script>
+  const KEY = "chave-clinica-sdm-123"; // chave de demonstração
+  const api = (m, r, b) => fetch(r, { method: m, headers: { "X-Api-Key": KEY, "Content-Type": "application/json" }, body: b ? JSON.stringify(b) : undefined }).then((x) => x.json());
+  const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  async function carregar() {
+    const [sim, est] = await Promise.all([api("GET", "/api/governo/admin/simulacao"), api("GET", "/api/governo/admin/estatisticas")]);
+    document.querySelectorAll("#modos button").forEach((b) => b.classList.toggle("on", b.dataset.m === sim.modo));
+    document.getElementById("modo-atual").innerHTML = `— modo atual: <span class="tag ${sim.modo === "NORMAL" ? "ok" : "err"}">${sim.modo}</span>`;
+    const k = [["Animais registrados", est.animais_registrados], ["Cadastros implícitos", est.animais_cadastro_implicito], ["Vacinações antirrábicas", est.vacinacoes_antirrabicas],
+      ["Operações processadas", est.operacoes_processadas], ["Operações rejeitadas", est.operacoes_rejeitadas], ["Reenvios idempotentes", est.reenvios_idempotentes]];
+    document.getElementById("kpis").innerHTML = k.map(([l, v]) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join("");
+    document.getElementById("animais").innerHTML = "<tr><th>Microchip</th><th>Nome</th><th>Espécie</th><th>Tutor</th><th>Situação</th><th>Atualizado</th></tr>" +
+      est.ultimos_animais.map((a) => `<tr><td class="mono">${a.microchip}</td><td>${esc(a.nome)}${a.cadastro_implicito ? ' <span class="tag warn">implícito</span>' : ""}</td><td>${esc(a.especie)}</td><td>${esc(a.tutor_nome)}</td><td><span class="tag ${a.situacao === "ATIVO" ? "ok" : "warn"}">${a.situacao}</span></td><td>${a.atualizado_em}</td></tr>`).join("");
+    document.getElementById("ops").innerHTML = "<tr><th>Protocolo</th><th>Tipo</th><th>Status</th><th>HTTP</th><th>Microchip</th><th>Repetições</th><th>Recebida</th></tr>" +
+      est.ultimas_operacoes.map((o) => `<tr><td class="mono">${o.protocolo}</td><td>${o.tipo}</td><td><span class="tag ${o.status === "PROCESSADA" ? "ok" : "err"}">${o.status}</span></td><td>${o.http_status}</td><td class="mono">${o.microchip || ""}</td><td>${o.replays}</td><td>${o.recebida_em}</td></tr>`).join("");
+  }
+  document.querySelectorAll("#modos button").forEach((b) => (b.onclick = async () => { await api("PUT", "/api/governo/admin/simulacao", { modo: b.dataset.m, atraso_segundos: 10 }); carregar(); }));
+  carregar(); setInterval(carregar, 4000);
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+openapi: 3.0.3
+info:
+  title: API Privada — Clínica Veterinária SDM
+  version: 1.0.0
+  description: |
+    API REST responsável pelas regras de negócio, validações, autenticação e persistência da clínica.
+
+    **Autenticação:** faça `POST /api/auth/login`, copie o `token` e clique em **Authorize** (Bearer).
+    Usuário de demonstração: `ana@clinica.vet` / `Senha@123`.
+
+    **Padrão de erro:** `{ "erro": "mensagem", "status": 422, "detalhes": ["..."] }`.
+    Exclusões são **lógicas** (situação INATIVO / CANCELADA).
+servers:
+  - url: http://127.0.0.1:5000
+security:
+  - Bearer: []
+tags:
+  - name: Autenticação
+  - name: CEP e endereços
+  - name: Tutores
+  - name: Espécies e raças
+  - name: Veterinários
+  - name: Animais e microchip
+  - name: Consultas
+  - name: Vacinas
+  - name: Integração governamental
+paths:
+  /api/health:
+    get: { tags: [Integração governamental], security: [], summary: Saúde da API e da conexão com o serviço governamental, responses: { "200": { description: OK } } }
+
+  # ------------------------------------------------------------------ AUTENTICAÇÃO
+  /api/auth/login:
+    post:
+      tags: [Autenticação]
+      security: []
+      summary: Login por e-mail e senha
+      description: Permitido apenas para veterinário ATIVO e com senha confirmada.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [email, senha], properties: { email: { type: string, example: ana@clinica.vet }, senha: { type: string, example: Senha@123 } } } } }
+      responses:
+        "200": { description: Token emitido, content: { application/json: { schema: { $ref: "#/components/schemas/Login" } } } }
+        "401": { description: E-mail ou senha incorretos }
+        "403": { description: Veterinário inativo ou senha não confirmada }
+  /api/auth/logout:
+    post: { tags: [Autenticação], summary: Encerra a sessão (token revogado), responses: { "200": { description: Sessão encerrada } } }
+  /api/auth/me:
+    get: { tags: [Autenticação], summary: Dados do veterinário autenticado, responses: { "200": { description: OK }, "401": { description: Não autenticado } } }
+  /api/auth/registro:
+    post:
+      tags: [Autenticação]
+      security: []
+      summary: Cadastro de veterinário (senha armazenada como hash; exige confirmação)
+      requestBody:
+        content: { application/json: { schema: { $ref: "#/components/schemas/RegistroVeterinario" } } }
+      responses:
+        "201": { description: "Cadastrado; código enviado por e-mail (simulado). Em DEV_MODE retorna codigo_simulado." }
+        "409": { description: CPF, e-mail ou CRMV já cadastrado }
+        "422": { $ref: "#/components/responses/Invalido" }
+  /api/auth/confirmar-senha:
+    post:
+      tags: [Autenticação]
+      security: []
+      summary: Confirma a senha com o código recebido por e-mail
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { email: { type: string }, codigo: { type: string, example: "123456" } } } } }
+      responses: { "200": { description: Confirmada }, "400": { description: Código inválido }, "410": { description: Código expirado } }
+  /api/auth/reenviar-codigo:
+    post:
+      tags: [Autenticação]
+      security: []
+      summary: Reenvia o código de confirmação
+      requestBody: { content: { application/json: { schema: { type: object, properties: { email: { type: string } } } } } }
+      responses: { "200": { description: OK } }
+  /api/dev/emails:
+    get: { tags: [Autenticação], security: [], summary: Caixa de saída de e-mails simulados (somente DEV_MODE), responses: { "200": { description: OK } } }
+
+  # ------------------------------------------------------------------ CEP / ENDEREÇOS
+  /api/cep/{cep}:
+    get:
+      tags: [CEP e endereços]
+      summary: Consulta CEP na API pública ViaCEP
+      parameters: [{ name: cep, in: path, required: true, schema: { type: string, example: "22775040" } }]
+      responses:
+        "200": { description: Endereço, content: { application/json: { schema: { $ref: "#/components/schemas/Endereco" } } } }
+        "400": { description: Formato inválido }
+        "404": { description: CEP inexistente }
+        "503": { description: ViaCEP indisponível (preencher manualmente) }
+        "504": { description: Timeout do ViaCEP }
+  /api/enderecos:
+    post: { tags: [CEP e endereços], summary: Cadastra endereço (tutor ou clínica), requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Endereco" } } } }, responses: { "201": { description: Criado } } }
+  /api/enderecos/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [CEP e endereços], summary: Consulta endereço, responses: { "200": { description: OK } } }
+    put: { tags: [CEP e endereços], summary: Altera endereço, requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Endereco" } } } }, responses: { "200": { description: OK } } }
+  /api/clinica/endereco:
+    get: { tags: [CEP e endereços], summary: Endereço da clínica, responses: { "200": { description: OK } } }
+
+  # ------------------------------------------------------------------ TUTORES
+  /api/tutores:
+    get:
+      tags: [Tutores]
+      summary: Lista tutores
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Nome ou CPF }
+        - { name: situacao, in: query, schema: { type: string, enum: [ATIVO, INATIVO] } }
+      responses: { "200": { description: OK } }
+    post:
+      tags: [Tutores]
+      summary: Cadastra tutor (CPF validado e único) com endereço
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Tutor" } } } }
+      responses:
+        "201": { description: Criado }
+        "409": { description: CPF duplicado }
+        "422": { $ref: "#/components/responses/Invalido" }
+  /api/tutores/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Tutores], summary: Consulta tutor, responses: { "200": { description: OK }, "404": { description: Não encontrado } } }
+    put: { tags: [Tutores], summary: Altera tutor, requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Tutor" } } } }, responses: { "200": { description: OK }, "409": { description: CPF duplicado } } }
+    delete: { tags: [Tutores], summary: Inativa tutor (exclusão lógica), responses: { "200": { description: OK } } }
+  /api/tutores/{id}/animais:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Tutores], summary: Animais do tutor, responses: { "200": { description: OK } } }
+
+  # ------------------------------------------------------------------ ESPÉCIES / RAÇAS
+  /api/especies:
+    get: { tags: [Espécies e raças], summary: Lista espécies, responses: { "200": { description: OK } } }
+    post: { tags: [Espécies e raças], summary: Cadastra espécie, requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Especie" } } } }, responses: { "201": { description: Criada }, "409": { description: Duplicada } } }
+  /api/especies/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Espécies e raças], summary: Consulta espécie, responses: { "200": { description: OK } } }
+    put: { tags: [Espécies e raças], summary: Altera espécie, requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Especie" } } } }, responses: { "200": { description: OK } } }
+    delete: { tags: [Espécies e raças], summary: Inativa espécie, responses: { "200": { description: OK } } }
+  /api/especies/{id}/racas:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Espécies e raças], summary: Raças ativas da espécie, responses: { "200": { description: OK } } }
+  /api/racas:
+    get:
+      tags: [Espécies e raças]
+      summary: Lista raças
+      parameters: [{ name: especie_id, in: query, schema: { type: integer } }]
+      responses: { "200": { description: OK } }
+    post: { tags: [Espécies e raças], summary: Cadastra raça (associada a uma espécie), requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Raca" } } } }, responses: { "201": { description: Criada } } }
+  /api/racas/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    put: { tags: [Espécies e raças], summary: Altera raça, requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Raca" } } } }, responses: { "200": { description: OK } } }
+    delete: { tags: [Espécies e raças], summary: Inativa raça, responses: { "200": { description: OK } } }
+
+  # ------------------------------------------------------------------ VETERINÁRIOS
+  /api/veterinarios:
+    get: { tags: [Veterinários], summary: Lista veterinários (sem hash de senha), responses: { "200": { description: OK } } }
+  /api/veterinarios/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Veterinários], summary: Consulta veterinário, responses: { "200": { description: OK } } }
+    put:
+      tags: [Veterinários]
+      summary: Altera nome, e-mail e telefone
+      requestBody: { content: { application/json: { schema: { type: object, properties: { nome: { type: string }, email: { type: string }, telefone: { type: string } } } } } }
+      responses: { "200": { description: OK } }
+  /api/veterinarios/{id}/situacao:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Veterinários]
+      summary: Ativa ou inativa (inativação encerra sessões abertas)
+      requestBody: { content: { application/json: { schema: { type: object, properties: { situacao: { type: string, enum: [ATIVO, INATIVO] } } } } } }
+      responses: { "200": { description: OK } }
+
+  # ------------------------------------------------------------------ ANIMAIS
+  /api/animais:
+    get:
+      tags: [Animais e microchip]
+      summary: Lista animais
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Nome do animal, do tutor ou microchip }
+        - { name: tutor_id, in: query, schema: { type: integer } }
+        - { name: microchip, in: query, schema: { type: string } }
+        - { name: gov_situacao, in: query, schema: { type: string, enum: [NAO_ENVIADO, PENDENTE, SINCRONIZADO, FALHA] } }
+      responses: { "200": { description: OK } }
+    post:
+      tags: [Animais e microchip]
+      summary: Cadastra animal (microchip opcional no mesmo request)
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Animal" } } } }
+      responses:
+        "201": { description: Criado }
+        "409": { description: Microchip já utilizado }
+        "422": { description: "Validação (tutor obrigatório, raça incompatível com a espécie etc.)" }
+  /api/animais/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Animais e microchip], summary: Consulta animal (com histórico de microchips e integrações), responses: { "200": { description: OK } } }
+    put: { tags: [Animais e microchip], summary: Atualiza animal (comunica atualização ao serviço governamental se já registrado), requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Animal" } } } }, responses: { "200": { description: OK } } }
+    delete: { tags: [Animais e microchip], summary: Inativa animal, responses: { "200": { description: OK } } }
+  /api/animais/{id}/microchip:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Animais e microchip]
+      summary: Vincula ou substitui o microchip RFID
+      description: |
+        Vínculo feito pelo veterinário autenticado. O código deve ter 15 dígitos e nunca pode ter sido usado.
+        Substituição exige `motivo_substituicao` e preserva o histórico. Gera cadastro no serviço governamental.
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [codigo_microchip, data_implantacao], properties: { codigo_microchip: { type: string, example: "076111222333444" }, data_implantacao: { type: string, format: date }, motivo_substituicao: { type: string } } } } }
+      responses: { "201": { description: Vinculado }, "409": { description: Microchip já utilizado }, "422": { description: Formato inválido ou falta motivo } }
+  /api/animais/{id}/microchips:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Animais e microchip], summary: Histórico de vínculos de microchip, responses: { "200": { description: OK } } }
+  /api/animais/{id}/sincronizar-governo:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post: { tags: [Integração governamental], summary: Envia cadastro (ou atualização) do animal ao serviço governamental, responses: { "200": { description: Resultado da integração } } }
+  /api/animais/{id}/situacao-governo:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Integração governamental], summary: Situação local + consulta em tempo real do registro externo, responses: { "200": { description: OK } } }
+  /api/animais/{id}/integracoes:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Integração governamental], summary: Operações de integração do animal, responses: { "200": { description: OK } } }
+
+  # ------------------------------------------------------------------ CONSULTAS
+  /api/consultas:
+    get:
+      tags: [Consultas]
+      summary: Lista consultas
+      parameters:
+        - { name: data, in: query, schema: { type: string, format: date } }
+        - { name: situacao, in: query, schema: { type: string, enum: [AGENDADA, REALIZADA, CANCELADA, NAO_COMPARECEU] } }
+      responses: { "200": { description: OK } }
+    post: { tags: [Consultas], summary: Registra consulta (veterinário responsável = autenticado), requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Consulta" } } } }, responses: { "201": { description: Criada } } }
+  /api/consultas/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Consultas], summary: Consulta uma consulta, responses: { "200": { description: OK } } }
+    put: { tags: [Consultas], summary: Altera consulta, requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Consulta" } } } }, responses: { "200": { description: OK } } }
+    delete: { tags: [Consultas], summary: Cancela consulta (não realizada), responses: { "200": { description: OK } } }
+  /api/animais/{id}/consultas:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Consultas], summary: Histórico clínico do animal, responses: { "200": { description: OK } } }
+
+  # ------------------------------------------------------------------ VACINAS
+  /api/vacinas/tipos:
+    get: { tags: [Vacinas], summary: Classificação estruturada dos tipos de vacina, responses: { "200": { description: OK } } }
+  /api/vacinas:
+    post:
+      tags: [Vacinas]
+      summary: Registra aplicação de vacina
+      description: |
+        Registro local primeiro. Se `tipo_vacina = ANTIRRABICA` e `situacao = APLICADA`, gera na mesma transação
+        a comunicação obrigatória (chave de idempotência `VAC-ANTIRRABICA-{id}`) e tenta enviá-la. Se o serviço
+        estiver indisponível, a vacina continua registrada e a comunicação fica PENDENTE.
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/Vacina" } } } }
+      responses: { "201": { description: Registrada (inclui comunicacao_governo) }, "422": { $ref: "#/components/responses/Invalido" } }
+  /api/vacinas/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Vacinas], summary: Consulta aplicação (com estado da comunicação), responses: { "200": { description: OK } } }
+    put: { tags: [Vacinas], summary: "Altera vacina AGENDADA (ex.: marcar APLICADA). Aplicadas: só observações/próxima dose.", responses: { "200": { description: OK } } }
+    delete: { tags: [Vacinas], summary: Cancela vacina agendada, responses: { "200": { description: OK }, "409": { description: Já aplicada } } }
+  /api/animais/{id}/vacinas:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Vacinas], summary: Histórico de vacinação e próximas doses do animal, responses: { "200": { description: OK } } }
+  /api/vacinas/proximas-doses:
+    get:
+      tags: [Vacinas]
+      summary: Próximas doses previstas na clínica
+      parameters: [{ name: dias, in: query, schema: { type: integer, default: 30 } }]
+      responses: { "200": { description: OK } }
+
+  # ------------------------------------------------------------------ INTEGRAÇÕES
+  /api/integracoes:
+    get:
+      tags: [Integração governamental]
+      summary: Lista operações de integração
+      parameters:
+        - { name: situacao, in: query, schema: { type: string, enum: [PENDENTE, ENVIADA, CONFIRMADA, FALHA] } }
+        - { name: tipo, in: query, schema: { type: string, enum: [CADASTRO_ANIMAL, ATUALIZACAO_ANIMAL, VACINACAO_ANTIRRABICA] } }
+        - { name: animal_id, in: query, schema: { type: integer } }
+      responses: { "200": { description: OK } }
+  /api/integracoes/resumo:
+    get: { tags: [Integração governamental], summary: Quantidade por situação, responses: { "200": { description: OK } } }
+  /api/integracoes/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get: { tags: [Integração governamental], summary: Detalhe (payload, resposta, chave, tentativas), responses: { "200": { description: OK } } }
+  /api/integracoes/{id}/reenviar:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { name: forcar, in: query, schema: { type: boolean }, description: Repete mesmo se já CONFIRMADA (demonstra idempotência) }
+    post: { tags: [Integração governamental], summary: Reenvio manual com a mesma chave de idempotência, responses: { "200": { description: Resultado }, "409": { description: Já confirmada (sem forcar) } } }
+  /api/integracoes/reprocessar-pendentes:
+    post: { tags: [Integração governamental], summary: Reprocessa todas as pendências agora (o worker faz isso automaticamente), responses: { "200": { description: Resumo do reprocessamento } } }
+
+components:
+  securitySchemes:
+    Bearer: { type: http, scheme: bearer }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: integer } }
+  responses:
+    Invalido:
+      description: Dados inválidos
+      content: { application/json: { schema: { $ref: "#/components/schemas/Erro" } } }
+  schemas:
+    Erro:
+      type: object
+      properties: { erro: { type: string }, status: { type: integer }, detalhes: { type: array, items: { type: string } } }
+    Login:
+      type: object
+      properties:
+        token: { type: string }
+        tipo: { type: string, example: Bearer }
+        expira_em: { type: string }
+        veterinario: { type: object }
+    RegistroVeterinario:
+      type: object
+      required: [nome, cpf, crmv, crmv_uf, email, telefone, senha]
+      properties:
+        nome: { type: string }
+        cpf: { type: string }
+        crmv: { type: string }
+        crmv_uf: { type: string, example: RJ }
+        email: { type: string }
+        telefone: { type: string }
+        senha: { type: string, example: Teste1234 }
+        confirmacao_senha: { type: string }
+    Endereco:
+      type: object
+      required: [cep, logradouro, numero, bairro, cidade, uf]
+      properties:
+        cep: { type: string, example: "22775040" }
+        logradouro: { type: string }
+        numero: { type: string }
+        complemento: { type: string }
+        bairro: { type: string }
+        cidade: { type: string }
+        uf: { type: string }
+        codigo_ibge: { type: string, example: "3304557" }
+        tipo: { type: string, enum: [TUTOR, CLINICA] }
+    Tutor:
+      type: object
+      required: [nome, cpf, data_nascimento, email, telefone, endereco]
+      properties:
+        nome: { type: string, example: João da Silva }
+        cpf: { type: string, example: "11144477735" }
+        data_nascimento: { type: string, format: date }
+        email: { type: string }
+        telefone: { type: string, example: "21987654321" }
+        situacao: { type: string, enum: [ATIVO, INATIVO] }
+        endereco: { $ref: "#/components/schemas/Endereco" }
+    Especie:
+      type: object
+      properties: { nome: { type: string }, descricao: { type: string }, situacao: { type: string, enum: [ATIVO, INATIVO] } }
+    Raca:
+      type: object
+      properties: { nome: { type: string }, descricao: { type: string }, especie_id: { type: integer }, situacao: { type: string } }
+    Animal:
+      type: object
+      required: [nome, sexo, cor, peso_atual, tutor_id, especie_id]
+      properties:
+        nome: { type: string, example: Rex }
+        data_nascimento: { type: string, format: date }
+        idade_estimada_meses: { type: integer, description: Obrigatório se não houver data de nascimento }
+        sexo: { type: string, enum: [M, F] }
+        cor: { type: string }
+        peso_atual: { type: number, example: 22.5 }
+        tutor_id: { type: integer }
+        especie_id: { type: integer }
+        raca_id: { type: integer, nullable: true, description: null = sem raça definida }
+        situacao: { type: string, enum: [ATIVO, INATIVO, OBITO] }
+        microchip: { type: string, description: Opcional no cadastro }
+        data_implantacao: { type: string, format: date }
+    Consulta:
+      type: object
+      required: [animal_id, data_hora, motivo]
+      properties:
+        animal_id: { type: integer }
+        data_hora: { type: string, example: "2026-11-26T10:30" }
+        motivo: { type: string }
+        anamnese: { type: string }
+        sintomas: { type: string }
+        diagnostico: { type: string }
+        tratamento: { type: string }
+        prescricao: { type: string }
+        peso_registrado: { type: number }
+        temperatura: { type: number, example: 38.5 }
+        observacoes: { type: string }
+        situacao: { type: string, enum: [AGENDADA, REALIZADA, CANCELADA, NAO_COMPARECEU] }
+    Vacina:
+      type: object
+      required: [animal_id, nome_vacina, tipo_vacina, fabricante, lote, data_aplicacao, dose, via_aplicacao, data_validade_lote]
+      properties:
+        animal_id: { type: integer }
+        nome_vacina: { type: string, example: Rabisin }
+        tipo_vacina: { type: string, enum: [ANTIRRABICA, POLIVALENTE_CANINA, POLIVALENTE_FELINA, GRIPE_CANINA, GIARDIASE, LEISHMANIOSE, LEUCEMIA_FELINA, OUTRA] }
+        fabricante: { type: string }
+        lote: { type: string }
+        data_aplicacao: { type: string, format: date }
+        dose: { type: string, example: Reforço anual }
+        via_aplicacao: { type: string, enum: [SUBCUTANEA, INTRAMUSCULAR, INTRANASAL, ORAL] }
+        data_proxima_dose: { type: string, format: date }
+        data_validade_lote: { type: string, format: date }
+        observacoes: { type: string }
+        situacao: { type: string, enum: [AGENDADA, APLICADA, CANCELADA], default: APLICADA }

@@ -1,0 +1,150 @@
+erDiagram
+    ENDERECO ||--o{ TUTOR : "localiza"
+    TUTOR ||--o{ ANIMAL : "é responsável por"
+    ESPECIE ||--o{ RACA : "agrupa"
+    ESPECIE ||--o{ ANIMAL : "classifica"
+    RACA |o--o{ ANIMAL : "define (opcional)"
+    ANIMAL ||--o{ VINCULO_MICROCHIP : "possui histórico"
+    VETERINARIO ||--o{ VINCULO_MICROCHIP : "realiza vínculo"
+    VINCULO_MICROCHIP |o--o| VINCULO_MICROCHIP : "substituído por"
+    ANIMAL ||--o{ CONSULTA : "recebe"
+    VETERINARIO ||--o{ CONSULTA : "atende"
+    ANIMAL ||--o{ VACINA : "recebe"
+    VETERINARIO ||--o{ VACINA : "aplica"
+    ANIMAL ||--o{ INTEGRACAO_GOVERNO : "é sincronizado"
+    VACINA |o--o| INTEGRACAO_GOVERNO : "gera comunicação"
+    VETERINARIO ||--o{ SESSAO : "abre"
+
+    ENDERECO {
+        int id PK
+        char cep
+        varchar logradouro
+        varchar numero
+        varchar complemento
+        varchar bairro
+        varchar cidade
+        char uf
+        char codigo_ibge
+        varchar tipo "TUTOR|CLINICA"
+    }
+    TUTOR {
+        int id PK
+        varchar nome
+        char cpf UK
+        date data_nascimento
+        varchar email
+        varchar telefone
+        int endereco_id FK
+        datetime data_cadastro
+        varchar situacao
+    }
+    ESPECIE {
+        int id PK
+        varchar nome UK
+        varchar descricao
+        varchar situacao
+    }
+    RACA {
+        int id PK
+        varchar nome "UK(nome,especie_id)"
+        varchar descricao
+        int especie_id FK
+        varchar situacao
+    }
+    VETERINARIO {
+        int id PK
+        varchar nome
+        char cpf UK
+        varchar crmv "UK(crmv,crmv_uf)"
+        char crmv_uf
+        varchar email UK
+        varchar telefone
+        varchar senha_hash
+        bool senha_confirmada
+        datetime data_confirmacao
+        datetime data_cadastro
+        varchar situacao
+        datetime ultimo_acesso
+    }
+    SESSAO {
+        varchar id PK
+        int veterinario_id FK
+        datetime expira_em
+        datetime encerrada_em
+    }
+    ANIMAL {
+        int id PK
+        varchar nome
+        date data_nascimento
+        int idade_estimada_meses
+        char sexo
+        varchar cor
+        real peso_atual
+        int tutor_id FK
+        int especie_id FK
+        int raca_id FK "nullable"
+        char microchip_atual UK
+        varchar situacao
+        varchar gov_situacao
+        varchar gov_protocolo
+    }
+    VINCULO_MICROCHIP {
+        int id PK
+        int animal_id FK
+        char codigo_microchip UK
+        int veterinario_id FK
+        date data_implantacao
+        datetime data_vinculo
+        bool ativo
+        datetime data_desativacao
+        varchar motivo_substituicao
+        int substituido_por_id FK
+    }
+    CONSULTA {
+        int id PK
+        int animal_id FK
+        int veterinario_id FK
+        datetime data_hora
+        varchar motivo
+        text anamnese
+        text sintomas
+        text diagnostico
+        text tratamento
+        text prescricao
+        real peso_registrado
+        real temperatura
+        text observacoes
+        varchar situacao
+    }
+    VACINA {
+        int id PK
+        int animal_id FK
+        int veterinario_id FK
+        varchar nome_vacina
+        varchar tipo_vacina
+        bool antirrabica
+        varchar fabricante
+        varchar lote
+        date data_aplicacao
+        varchar dose
+        varchar via_aplicacao
+        date data_proxima_dose
+        date data_validade_lote
+        text observacoes
+        varchar situacao
+    }
+    INTEGRACAO_GOVERNO {
+        int id PK
+        int animal_id FK
+        int vacina_id FK "UK, nullable"
+        varchar tipo_operacao
+        varchar protocolo_externo
+        varchar chave_idempotencia UK
+        varchar situacao
+        datetime data_solicitacao
+        datetime data_resposta
+        datetime proxima_tentativa
+        int tentativas
+        text mensagem_erro
+        text payload
+    }

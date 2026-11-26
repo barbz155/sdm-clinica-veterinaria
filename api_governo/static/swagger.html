@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Documentação da API</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"></head>
+<body><div id="swagger"></div>
+<noscript>Abra o arquivo <a href="/openapi.yaml">openapi.yaml</a>.</noscript>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+  if (window.SwaggerUIBundle) {
+    SwaggerUIBundle({ url: "/openapi.yaml", dom_id: "#swagger", persistAuthorization: true, docExpansion: "list" });
+  } else {
+    document.getElementById("swagger").innerHTML = '<p style="font-family:sans-serif;padding:2rem">Sem internet para carregar o Swagger UI. A especificação está em <a href="/openapi.yaml">/openapi.yaml</a> (pode ser aberta em editor.swagger.io).</p>';
+  }
+</script></body></html>

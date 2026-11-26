@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    actor V as Veterinário
+    participant F as Frontend
+    participant C as API Clínica
+    participant DB as clinica.db
+    participant G as API Governo (simulada)
+    V->>F: Registra vacina (tipo ANTIRRABICA)
+    F->>C: POST /api/vacinas
+    C->>DB: BEGIN · INSERT vacina (APLICADA)
+    C->>DB: INSERT integracao_governo (PENDENTE, chave VAC-ANTIRRABICA-{id}) · COMMIT
+    Note over C,DB: registro local garantido antes de qualquer chamada externa
+    C->>DB: UPDATE situacao=ENVIADA (reivindicação atômica)
+    C->>G: POST /vacinacoes-antirrabicas (Idempotency-Key)
+    alt serviço disponível
+        G-->>C: 201 + protocolo
+        C->>DB: CONFIRMADA + protocolo
+    else indisponível / timeout / 5xx
+        G--xC: 503 ou timeout
+        C->>DB: PENDENTE + erro + próxima tentativa (backoff)
+        loop worker a cada N s / reenvio manual
+            C->>G: mesma requisição, MESMA Idempotency-Key
+            G-->>C: 201 (ou replay da resposta original)
+            C->>DB: CONFIRMADA + protocolo
+        end
+    end
+    C-->>F: 201 vacina + estado da comunicação

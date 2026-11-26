@@ -1,0 +1,212 @@
+openapi: 3.0.3
+info:
+  title: API Governamental Simulada — Registro de Animais com Microchip
+  version: 1.0.0
+  description: |
+    Serviço **fictício**, desenvolvido para fins acadêmicos (A3 — Sistemas Distribuídos e Mobile).
+    **Não representa integração oficial com sistemas governamentais reais.**
+
+    * Autenticação entre serviços: cabeçalho `X-Api-Key`.
+    * Operações de escrita exigem `Idempotency-Key`. Repetir a mesma chave devolve a resposta
+      original (cabeçalho `Idempotent-Replay: true`) sem criar novo registro.
+    * Toda operação gera um **protocolo** consultável em `/api/governo/operacoes/{protocolo}`.
+    * A indisponibilidade pode ser simulada em `/api/governo/admin/simulacao`.
+servers:
+  - url: http://127.0.0.1:5001
+security:
+  - ApiKey: []
+tags:
+  - name: Animais
+  - name: Vacinações
+  - name: Operações
+  - name: Administração (simulação)
+paths:
+  /api/governo/health:
+    get:
+      tags: [Administração (simulação)]
+      summary: Verifica se o serviço está no ar (respeita o modo de simulação)
+      responses:
+        "200": { description: Serviço disponível }
+        "503": { $ref: "#/components/responses/Indisponivel" }
+  /api/governo/animais:
+    post:
+      tags: [Animais]
+      summary: Cadastra um animal identificado por microchip
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnimalEntrada" }
+      responses:
+        "201": { description: Registrado, content: { application/json: { schema: { $ref: "#/components/schemas/Protocolo" } } } }
+        "200": { description: Já registrado pelo mesmo sistema de origem — dados atualizados }
+        "400": { description: Idempotency-Key ausente }
+        "401": { $ref: "#/components/responses/NaoAutorizado" }
+        "409": { description: Microchip já registrado por outro sistema de origem }
+        "422": { $ref: "#/components/responses/Invalido" }
+        "503": { $ref: "#/components/responses/Indisponivel" }
+  /api/governo/animais/{microchip}:
+    parameters:
+      - { name: microchip, in: path, required: true, schema: { type: string, pattern: "^\\d{15}$" } }
+    get:
+      tags: [Animais]
+      summary: Consulta um animal pelo microchip (inclui vacinações antirrábicas)
+      responses:
+        "200": { description: Encontrado, content: { application/json: { schema: { $ref: "#/components/schemas/AnimalRegistro" } } } }
+        "404": { description: Não encontrado }
+        "503": { $ref: "#/components/responses/Indisponivel" }
+    put:
+      tags: [Animais]
+      summary: Atualiza dados cadastrais do animal
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AnimalEntrada" }
+      responses:
+        "200": { description: Atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/Protocolo" } } } }
+        "404": { description: Não encontrado }
+        "422": { $ref: "#/components/responses/Invalido" }
+        "503": { $ref: "#/components/responses/Indisponivel" }
+  /api/governo/vacinacoes-antirrabicas:
+    post:
+      tags: [Vacinações]
+      summary: Recebe e registra uma vacinação antirrábica
+      description: |
+        Se o animal ainda não estiver registrado, ele é cadastrado implicitamente a partir do bloco `animal`
+        (a comunicação é obrigatória independentemente de cadastro prévio).
+        Proteção dupla contra duplicidade: `Idempotency-Key` + unicidade de (`origem_sistema`, `id_aplicacao_origem`).
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VacinacaoEntrada" }
+      responses:
+        "201": { description: Registrada, content: { application/json: { schema: { $ref: "#/components/schemas/Protocolo" } } } }
+        "200": { description: Já registrada anteriormente (duplicidade_evitada = true) }
+        "422": { $ref: "#/components/responses/Invalido" }
+        "503": { $ref: "#/components/responses/Indisponivel" }
+    get:
+      tags: [Vacinações]
+      summary: Lista vacinações recebidas (filtro opcional por microchip)
+      parameters:
+        - { name: microchip, in: query, schema: { type: string } }
+      responses:
+        "200": { description: Lista }
+  /api/governo/operacoes/{protocolo}:
+    get:
+      tags: [Operações]
+      summary: Consulta o resultado de uma operação pelo protocolo
+      parameters:
+        - { name: protocolo, in: path, required: true, schema: { type: string, example: GOV-20261126-1A2B3C4D } }
+      responses:
+        "200": { description: Operação encontrada }
+        "404": { description: Protocolo inexistente }
+  /api/governo/admin/simulacao:
+    get:
+      tags: [Administração (simulação)]
+      summary: Consulta o modo de simulação atual
+      responses: { "200": { description: Modo atual } }
+    put:
+      tags: [Administração (simulação)]
+      summary: Define o modo de simulação de falhas
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                modo: { type: string, enum: [NORMAL, INDISPONIVEL, LENTO, ERRO_INTERMITENTE] }
+                atraso_segundos: { type: integer, example: 10, description: Usado no modo LENTO }
+      responses: { "200": { description: Modo alterado } }
+  /api/governo/admin/estatisticas:
+    get:
+      tags: [Administração (simulação)]
+      summary: Indicadores do serviço (registros, operações, reenvios idempotentes)
+      responses: { "200": { description: Estatísticas } }
+components:
+  securitySchemes:
+    ApiKey: { type: apiKey, in: header, name: X-Api-Key }
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, maxLength: 80, example: VAC-ANTIRRABICA-12 }
+  responses:
+    NaoAutorizado: { description: Chave de API ausente ou inválida }
+    Invalido:
+      description: Dados inválidos (gera protocolo com status REJEITADA)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Protocolo" } } }
+    Indisponivel: { description: Serviço indisponível (simulação) }
+  schemas:
+    Pessoa:
+      type: object
+      properties:
+        nome: { type: string }
+        cpf: { type: string, example: "12345678909" }
+        municipio_ibge: { type: string, example: "3304557" }
+    Veterinario:
+      type: object
+      required: [crmv, crmv_uf]
+      properties:
+        nome: { type: string }
+        crmv: { type: string, example: "12345" }
+        crmv_uf: { type: string, example: RJ }
+    AnimalEntrada:
+      type: object
+      required: [microchip, nome, especie, sexo, tutor, veterinario, origem_sistema, id_animal_origem]
+      properties:
+        microchip: { type: string, example: "076111222333444" }
+        nome: { type: string, example: Thor }
+        especie: { type: string, example: Cão }
+        raca: { type: string, example: Labrador Retriever }
+        sexo: { type: string, enum: [M, F] }
+        data_nascimento: { type: string, format: date }
+        cor: { type: string }
+        tutor: { $ref: "#/components/schemas/Pessoa" }
+        veterinario: { $ref: "#/components/schemas/Veterinario" }
+        origem_sistema: { type: string, example: CLINICA-VET-SDM }
+        id_animal_origem: { type: string, example: "1" }
+        microchip_anterior: { type: string, description: Informado na substituição de microchip }
+    VacinacaoEntrada:
+      type: object
+      required: [microchip, origem_sistema, id_aplicacao_origem, data_aplicacao, vacina, veterinario]
+      properties:
+        microchip: { type: string }
+        origem_sistema: { type: string }
+        id_aplicacao_origem: { type: string }
+        id_animal_origem: { type: string }
+        data_aplicacao: { type: string, format: date }
+        vacina:
+          type: object
+          properties:
+            nome: { type: string, example: Rabisin }
+            tipo: { type: string, example: ANTIRRABICA }
+            fabricante: { type: string }
+            lote: { type: string }
+            dose: { type: string }
+        veterinario: { $ref: "#/components/schemas/Veterinario" }
+        animal: { $ref: "#/components/schemas/AnimalEntrada" }
+    Protocolo:
+      type: object
+      properties:
+        protocolo: { type: string, example: GOV-20261126-1A2B3C4D }
+        status: { type: string, enum: [PROCESSADA, REJEITADA] }
+        tipo_operacao: { type: string }
+        mensagem: { type: string }
+        erros: { type: array, items: { type: string } }
+        cadastro_implicito_animal: { type: boolean }
+        duplicidade_evitada: { type: boolean }
+        processado_em: { type: string }
+    AnimalRegistro:
+      allOf:
+        - $ref: "#/components/schemas/AnimalEntrada"
+        - type: object
+          properties:
+            situacao: { type: string, enum: [ATIVO, SUBSTITUIDO] }
+            cadastro_implicito: { type: boolean }
+            vacinacoes_antirrabicas: { type: array, items: { type: object } }

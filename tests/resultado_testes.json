@@ -1,0 +1,274 @@
+[
+  {
+    "numero": 1,
+    "titulo": "Login de veterinário ativo e com senha confirmada",
+    "esperado": "HTTP 200 com token Bearer",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/auth/login (ana@clinica.vet) -> HTTP 200",
+      "✅ token recebido (eyJzaWQiOiI1YTRlMj...), expira_em=2026-11-25 12:01:54",
+      "✅ GET /api/auth/me -> Dra. Ana Souza"
+    ],
+    "duracao_ms": 85
+  },
+  {
+    "numero": 2,
+    "titulo": "Bloqueio de veterinário inativo",
+    "esperado": "HTTP 403 - veterinário inativo",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ login bruno@clinica.vet (INATIVO) -> HTTP 403: Acesso bloqueado: veterinário inativo. Procure a administração da clínica."
+    ],
+    "duracao_ms": 80
+  },
+  {
+    "numero": 3,
+    "titulo": "Bloqueio de veterinário com senha não confirmada",
+    "esperado": "HTTP 403 - senha não confirmada",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ login carla@clinica.vet (não confirmada) -> HTTP 403: Acesso bloqueado: senha ainda não confirmada. Use o código enviado ao seu e-mail."
+    ],
+    "duracao_ms": 79
+  },
+  {
+    "numero": 4,
+    "titulo": "Rejeição de senha incorreta",
+    "esperado": "HTTP 401 - e-mail ou senha incorretos",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ login com senha errada -> HTTP 401: E-mail ou senha incorretos."
+    ],
+    "duracao_ms": 79
+  },
+  {
+    "numero": 5,
+    "titulo": "Cadastro de tutor e validação de CPF duplicado",
+    "esperado": "201 no cadastro; 409 no CPF repetido; 422 CPF inválido",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/tutores (CPF 76665202550) -> HTTP 201, id=2",
+      "✅ POST /api/tutores com o mesmo CPF -> HTTP 409: Já existe um tutor cadastrado com este CPF.",
+      "✅ POST /api/tutores com CPF inválido -> HTTP 422: ['CPF inválido.']"
+    ],
+    "duracao_ms": 10
+  },
+  {
+    "numero": 6,
+    "titulo": "Consulta de CEP válido e tratamento de CEP inexistente",
+    "esperado": "200 com endereço preenchido; 404 CEP inexistente",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ GET /api/cep/22775040 -> HTTP 200: Avenida Embaixador Abelardo Bueno, Barra da Tijuca, Rio de Janeiro/RJ, IBGE 3304557",
+      "✅ GET /api/cep/00000000 -> HTTP 404: CEP não encontrado.",
+      "✅ GET /api/cep/123 (formato inválido) -> HTTP 400: CEP deve conter 8 dígitos.",
+      "ℹ️ Ambiente de execução sem acesso à internet: o ViaCEP foi substituído pelo dublê tests/mock_viacep.py (mesmo formato de resposta), configurado via VIACEP_URL. Com internet, a API consome https://viacep.com.br diretamente."
+    ],
+    "duracao_ms": 11
+  },
+  {
+    "numero": 7,
+    "titulo": "Cadastro de animal e vínculo de microchip",
+    "esperado": "201; vínculo registra veterinário e data; animal sincronizado",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/animais -> HTTP 201, id=3",
+      "✅ POST /api/animais/3/microchip (076076888915062) -> HTTP 201",
+      "✅ vínculo por Dra. Ana Souza (CRMV 12345-RJ) em 2026-11-25 04:01:54",
+      "✅ situação governamental do animal: SINCRONIZADO (protocolo GOV-20261125-4260D370)"
+    ],
+    "duracao_ms": 14
+  },
+  {
+    "numero": 8,
+    "titulo": "Rejeição de microchip já utilizado",
+    "esperado": "HTTP 409",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ vincular 076076888915062 a outro animal -> HTTP 409: Microchip já utilizado (animal #3 - Rex (teste)). Um microchip não pode ser reutilizado."
+    ],
+    "duracao_ms": 7
+  },
+  {
+    "numero": 9,
+    "titulo": "Registro de consulta e consulta ao histórico clínico",
+    "esperado": "201; consulta aparece no histórico do animal",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/consultas -> HTTP 201, id=1, veterinário=Dra. Ana Souza",
+      "✅ GET /api/animais/3/consultas -> 1 registro(s) no histórico",
+      "✅ peso atual do animal atualizado para 23.1 kg"
+    ],
+    "duracao_ms": 8
+  },
+  {
+    "numero": 10,
+    "titulo": "Registro de vacina e consulta às próximas doses",
+    "esperado": "201; próxima dose listada",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/vacinas (V10) -> HTTP 201, id=1",
+      "✅ GET /api/animais/3/vacinas -> próximas doses: [('V10 Polivalente', '2026-12-16')]",
+      "✅ GET /api/vacinas/proximas-doses?dias=30 -> 1 dose(s) prevista(s) na clínica"
+    ],
+    "duracao_ms": 9
+  },
+  {
+    "numero": 11,
+    "titulo": "Cadastro e atualização de animal na API governamental simulada",
+    "esperado": "Animal encontrado no serviço externo; atualização confirmada",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ cadastro: GET situacao-governo -> registro externo ENCONTRADO (nome=Rex (teste), cor=Preto)",
+      "✅ PUT /api/animais/3 -> integração ATUALIZACAO_ANIMAL CONFIRMADA protocolo GOV-20261125-605F35BC",
+      "✅ GET http://127.0.0.1:5001/api/governo/animais/076076888915062 -> cor='Preto e branco'"
+    ],
+    "duracao_ms": 16
+  },
+  {
+    "numero": 12,
+    "titulo": "Envio obrigatório de vacina antirrábica",
+    "esperado": "Registro local + comunicação CONFIRMADA com protocolo, inclusive para animal ainda não cadastrado no serviço externo",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/vacinas (ANTIRRABICA) -> HTTP 201, registro local REGISTRADA",
+      "✅ comunicação obrigatória: CONFIRMADA - protocolo GOV-20261125-49ACC676",
+      "✅ serviço externo possui 1 vacinação(ões) antirrábica(s) para 076076888915062",
+      "✅ animal Luna com microchip 076125793840148 criado com o serviço externo fora do ar -> cadastro externo PENDENTE",
+      "✅ antirrábica de animal não cadastrado no serviço externo -> CONFIRMADA (protocolo GOV-20261125-59BF053B, cadastro_implicito_animal=True)"
+    ],
+    "duracao_ms": 35
+  },
+  {
+    "numero": 13,
+    "titulo": "Ausência de comunicação obrigatória para vacina não antirrábica",
+    "esperado": "Nenhuma integração gerada",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ vacina V10 (POLIVALENTE_CANINA): comunicação=NAO_SE_APLICA, integração=None",
+      "✅ texto digitado contendo 'raiva' com tipo GRIPE_CANINA -> não classificada como antirrábica (classificação estruturada pelo tipo)",
+      "✅ serviço externo continua com 1 vacinação(ões) para 076076888915062"
+    ],
+    "duracao_ms": 8
+  },
+  {
+    "numero": 14,
+    "titulo": "Indisponibilidade da API governamental e registro de pendência",
+    "esperado": "Vacina registrada localmente; comunicação PENDENTE com erro e tentativa contabilizada",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/vacinas com o serviço fora do ar -> HTTP 201; vacina #5 registrada localmente (APLICADA)",
+      "✅ comunicação PENDENTE, tentativas=1, erro='Serviço governamental temporariamente indisponível (simulação).'",
+      "✅ integração #6: próxima tentativa automática agendada para 2026-11-25 04:02:25, chave VAC-ANTIRRABICA-5",
+      "✅ GET /api/integracoes?situacao=PENDENTE -> 2 pendência(s)",
+      "✅ serviço externo responde HTTP 503 (indisponível)"
+    ],
+    "duracao_ms": 16
+  },
+  {
+    "numero": 15,
+    "titulo": "Reenvio de comunicação pendente e confirmação posterior",
+    "esperado": "Após o retorno do serviço, reenvio confirma com protocolo",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/integracoes/6/reenviar -> CONFIRMADA, protocolo GOV-20261125-D74F02B5, tentativas=2",
+      "✅ POST /api/integracoes/reprocessar-pendentes -> processadas=1, confirmadas=1, pendentes=0",
+      "✅ cadastro pendente da Luna regularizado -> SINCRONIZADO",
+      "✅ serviço externo agora tem 2 vacinações antirrábicas para 076076888915062 (a de 12 + a regularizada)"
+    ],
+    "duracao_ms": 23
+  },
+  {
+    "numero": 16,
+    "titulo": "Repetição de solicitação sem duplicidade de vacinação no serviço externo",
+    "esperado": "Mesmo protocolo; contagem inalterada",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ reenvio forçado pela clínica -> protocolo GOV-20261125-D74F02B5 (igual ao original); msg: Solicitação repetida: o serviço externo devolveu o MESMO protocolo, sem novo registro.",
+      "✅ POST direto com a mesma Idempotency-Key (VAC-ANTIRRABICA-5) -> HTTP 201, Idempotent-Replay=true",
+      "✅ mesma aplicação com OUTRA chave -> HTTP 200, duplicidade_evitada=True",
+      "✅ contagem no serviço externo após 3 repetições: 2 (antes: 2)"
+    ],
+    "duracao_ms": 15
+  },
+  {
+    "numero": "C1",
+    "titulo": "Proteção de endpoints sem autenticação",
+    "esperado": "HTTP 401",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ GET /api/tutores sem token -> HTTP 401"
+    ],
+    "duracao_ms": 1
+  },
+  {
+    "numero": "C2",
+    "titulo": "Raça incompatível com a espécie",
+    "esperado": "HTTP 422",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ gato com raça Labrador -> HTTP 422: A raça selecionada não é compatível com a espécie informada."
+    ],
+    "duracao_ms": 1
+  },
+  {
+    "numero": "C3",
+    "titulo": "Substituição de microchip preservando histórico",
+    "esperado": "Novo chip ativo, anterior inativo com motivo",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ substituir sem motivo -> HTTP 422",
+      "✅ histórico: [('076827908774430', 'ativo'), ('076076888915062', 'inativo')]",
+      "✅ serviço externo marcou o chip antigo como SUBSTITUIDO"
+    ],
+    "duracao_ms": 14
+  },
+  {
+    "numero": "C4",
+    "titulo": "Cadastro de veterinário com confirmação de senha por código",
+    "esperado": "403 antes; 200 após confirmar",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/auth/registro -> HTTP 201 (código simulado 723273)",
+      "✅ login antes de confirmar -> HTTP 403",
+      "✅ código errado -> HTTP 400",
+      "✅ código correto -> HTTP 200",
+      "✅ login após confirmar -> HTTP 200"
+    ],
+    "duracao_ms": 478
+  },
+  {
+    "numero": "C5",
+    "titulo": "Logout encerra a sessão",
+    "esperado": "token deixa de valer (401)",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ POST /api/auth/logout -> HTTP 200",
+      "✅ GET /api/auth/me com token encerrado -> HTTP 401"
+    ],
+    "duracao_ms": 87
+  },
+  {
+    "numero": "C6",
+    "titulo": "Antirrábica em animal sem microchip: registro local mantido e envio após o vínculo",
+    "esperado": "FALHA aguardando microchip -> CONFIRMADA após vincular",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ vacina registrada (APLICADA); comunicação FALHA: Animal sem microchip vinculado: não é possível comunicar ao serviço externo.",
+      "✅ após vincular o microchip a comunicação foi reenviada -> CONFIRMADA (protocolo GOV-20261125-3DC906F5)"
+    ],
+    "duracao_ms": 21
+  },
+  {
+    "numero": "C7",
+    "titulo": "Timeout com processamento tardio no serviço externo: reenvio reconhecido sem duplicar",
+    "esperado": "PENDENTE por timeout -> reenvio CONFIRMADA (replay idempotente); 1 único registro externo",
+    "resultado": "APROVADO",
+    "evidencias": [
+      "✅ clínica desistiu após o timeout de leitura: PENDENTE — Timeout ao comunicar com a API governamental.",
+      "✅ reenvio -> CONFIRMADA: Reenvio reconhecido pelo serviço externo (idempotente, sem duplicidade).",
+      "✅ registros externos antes/depois do reenvio: 2/2 (sem duplicidade)"
+    ],
+    "duracao_ms": 9054
+  }
+]
